@@ -14,10 +14,11 @@ Getting Started
 
 ### How to share an entity in an A-Frame scene with other users:  
 
-Add links to this component and croquet lib in the html header 
+Add links to this component and croquet lib in the html header
+
 ```html
 <script src="https://croquet.studio/sdk/croquet-latest.min.js"></script>
-<script src="./lib/aframe-croquet-component.js"></script>
+<script src="https://unpkg.com/aframe-croquet-component@0.0.1/public/lib/aframe-croquet-component.js"></script>
 ```
 
 Add `croquet` component to the root <a-scene> element and give a name to the Croquet session
@@ -66,7 +67,7 @@ Basic Scene Example
   <title>A-Frame & Croquet</title>
   <script src="https://croquet.studio/sdk/croquet-latest.min.js"></script>
   <script src="https://aframe.io/releases/1.0.3/aframe.min.js"></script>
-  <script src="./lib/aframe-croquet-component.js"></script>
+  <script src="https://unpkg.com/aframe-croquet-component@0.0.1/public/lib/aframe-croquet-component.js"></script>
 </head>
 <body>
   <a-scene croquet="sessionName: demo-scene">
