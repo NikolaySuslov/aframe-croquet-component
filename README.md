@@ -1,7 +1,7 @@
 ## A-Frame multi-user Croquet component 
 
 The component allows easily, while staying in [A-Frame](https://aframe.io) scene definition (plain HTML file), to add a multi-user features onto A-Frame entities in scene. Create [Croquet](https://croquet.studio) (aka Croquet V) simulations on A-Frame entities.  
-A-Frame multi-user component works by synchronizing / replicating entities and their components to connected peers using Croquet application architecture. It relaies on public Croquet reflectors, which are avaliable online on the Internet.  
+A-Frame multi-user component works by synchronizing / replicating entities and their components to connected peers using Croquet application architecture. It relies on public Croquet reflectors, which are avaliable online on the Internet.  
 
 [source code](./public/lib/aframe-croquet-component.js)
 
