@@ -1,0 +1,24 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>A-Frame multi-user Croquet component</title>
+  <script src="https://croquet.studio/sdk/croquet-latest.min.js"></script>
+  <script src="https://aframe.io/releases/1.0.3/aframe.min.js"></script>
+  <script src="./lib/aframe-croquet-component.js"></script>
+</head>
+<body>
+  <a-scene croquet="sessionName: demo-scene">
+    <a-box id="box1" position="-1.5 1 -3" rotation="0 45 0" color="#4CC3D9" multiuser="anim: true"></a-box>
+    <a-sphere id="sphere1" position="0 1.25 -5" radius="1.25" color="#EF2D5E" multiuser></a-sphere>
+    <a-cylinder id="cylinder1" position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
+    <a-plane id="plane1" position="0 0 -4" rotation="-90 0 0" width="4" height="4" color="#7BC8A4" multiuser></a-plane>
+    <a-sky id="sky" color="#ECECEC"></a-sky>
+    <a-entity id="cam">
+      <a-camera id="camera1">
+        <a-cursor></a-cursor>
+      </a-camera>
+    </a-entity>
+  </a-scene>
+</body>
+</html>

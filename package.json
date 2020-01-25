@@ -1,0 +1,23 @@
+{
+  "name": "aframe-croquet-component",
+  "description": "A-Frame multiuser component based on Croquet V",
+  "version": "0.0.1",
+  "author": "Nikolai Suslov",
+  "homepage": "https://croquet.krestianstvo.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NikolaySuslov/aframe-croquet-component.git"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "node-static": "0.7.11"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "croquet"
+  ],
+  "readmeFilename": "README.md",
+  "license": "MIT"
+}
