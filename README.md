@@ -9,6 +9,9 @@ A-Frame multi-user component works by synchronizing / replicating entities and t
 
 [Demo video](https://vimeo.com/387187875)
 
+Live basic project at Glitch: [https://glitch.com/~aframe-croquet-component](https://glitch.com/~aframe-croquet-component)
+
+
 Getting Started
 ---------------
 
