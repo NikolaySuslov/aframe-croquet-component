@@ -1,7 +1,7 @@
 {
   "name": "aframe-croquet-component",
   "description": "A-Frame multiuser component based on Croquet V",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": "Nikolai Suslov",
   "homepage": "https://croquet.krestianstvo.org",
   "repository": {
