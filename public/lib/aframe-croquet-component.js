@@ -267,7 +267,43 @@ AFRAME.registerComponent('croquet', {
     },
 
     init: function () {
-        Croquet.startSession(this.data.sessionName, RootModel, RootView);
+        //Croquet.startSession(this.data.sessionName, RootModel, RootView);
+        Croquet.startSession(this.data.sessionName, RootModel, RootView, { step: "manual" }).then(session => {
+            let self = this;
+            let xrSession = null;
+
+            function renderFrame(time, xrFrame) {
+                session.step(time);
+            }
+
+            function onWindowAnimationFrame(time) {
+                window.requestAnimationFrame(onWindowAnimationFrame);
+                if (!xrSession) {
+                    renderFrame(time, null)
+                }
+            }
+            window.requestAnimationFrame(onWindowAnimationFrame)
+
+            function onXRAnimationFrame(time, xrFrame) {
+                xrSession.requestAnimationFrame(onXRAnimationFrame);
+                renderFrame(time, xrFrame);
+            }
+
+            function startXRSession() {
+                if (self.el.xrSession) {
+                    xrSession = self.el.xrSession
+                    xrSession.requestAnimationFrame(onXRAnimationFrame)
+                }
+            }
+
+            function onXRSessionEnded() {
+                xrSession = null
+            }
+
+            this.el.addEventListener('enter-vr', startXRSession);
+            this.el.addEventListener('exit-vr', onXRSessionEnded);
+
+        });
     },
 
     update: function (oldData) {
