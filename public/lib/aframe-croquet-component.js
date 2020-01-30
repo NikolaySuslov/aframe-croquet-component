@@ -285,8 +285,10 @@ AFRAME.registerComponent('croquet', {
             window.requestAnimationFrame(onWindowAnimationFrame)
 
             function onXRAnimationFrame(time, xrFrame) {
-                xrSession.requestAnimationFrame(onXRAnimationFrame);
-                renderFrame(time, xrFrame);
+                if(xrSession) {
+                    xrSession.requestAnimationFrame(onXRAnimationFrame);
+                    renderFrame(time, xrFrame);
+                }
             }
 
             function startXRSession() {
