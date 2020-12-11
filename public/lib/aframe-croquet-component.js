@@ -256,8 +256,8 @@ class ComponentView extends Croquet.View {
 }
 
 
-ComponentModel.register();
-RootModel.register();
+ComponentModel.register("ComponentModel");
+RootModel.register("RootModel");
 
 
 AFRAME.registerComponent('croquet', {
@@ -268,7 +268,17 @@ AFRAME.registerComponent('croquet', {
 
     init: function () {
         //Croquet.startSession(this.data.sessionName, RootModel, RootView);
-        Croquet.startSession(this.data.sessionName, RootModel, RootView, { step: "manual" }).then(session => {
+        //Croquet.startSession(this.data.sessionName, RootModel, RootView, { step: "manual" })
+        Croquet.Session.join(
+            {
+                appId: "com.aframe.multiuser",           
+                name: Croquet.App.autoSession(), //this.data.sessionName,     
+                password: Croquet.App.autoPassword(),  
+                model: RootModel,
+                view: RootView
+                //debug: ["session"]
+            }
+        ).then(session => {
             let self = this;
             let xrSession = null;
 
