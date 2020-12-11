@@ -10,7 +10,7 @@
   },
   "main": "index.js",
   "dependencies": {
-    "node-static": "0.7.11"
+    "serve-static": "1.14.1"
   },
   "scripts": {
     "start": "node index.js"
