@@ -60,7 +60,7 @@ class RootModel extends Croquet.Model {
     addUser(id) {
         this.userData[id] = { start: this.now() };
         console.log(`user ${id} came in`);
-        //this.publish(this.id, 'user-added');
+        this.publish(this.sessionId, 'user-added');
     }
 
 
@@ -107,8 +107,9 @@ class RootView extends Croquet.View {
 
         })
 
-        this.subscribe(model.id, 'user-added', this.onUserAdded);
+        this.subscribe(this.sessionId, 'user-added', this.onUserAdded);
         this.subscribe(model.id, 'component-added', this.addViewComponent);
+        this.subscribe(this.viewId, "synced", this.synced);
 
     }
 
@@ -122,8 +123,16 @@ class RootView extends Croquet.View {
         }
     }
 
+    synced() {
+        console.log('Synced Models: ', this.sceneModel.children);
+        Object.keys(this.sceneModel.children).forEach(el=>{
+            this.addViewComponent(el);
+        })
+    }
+
     onUserAdded() {
-        console.log('User added!')
+        console.log('User added!');
+        //console.log('Models: ', this.children);
     }
 
     removeChild(childID) {
@@ -263,17 +272,20 @@ RootModel.register("RootModel");
 AFRAME.registerComponent('croquet', {
 
     schema: {
-        sessionName: { default: 'sessionName' }
+        sessionName: { default: 'demo' },
+        password: { default: 'demo' }
     },
 
     init: function () {
         //Croquet.startSession(this.data.sessionName, RootModel, RootView);
         //Croquet.startSession(this.data.sessionName, RootModel, RootView, { step: "manual" })
+        let sessionName = this.data.sessionName == 'demo' ? Croquet.App.autoSession() : this.data.sessionName;
+        let password = this.data.password == 'demo' ? Croquet.App.autoPassword() : this.data.password;
         Croquet.Session.join(
             {
                 appId: "com.aframe.multiuser",           
-                name: Croquet.App.autoSession(), //this.data.sessionName,     
-                password: Croquet.App.autoPassword(),  
+                name: sessionName,     
+                password: password,  
                 model: RootModel,
                 view: RootView
                 //debug: ["session"]
