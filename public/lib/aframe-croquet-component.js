@@ -283,6 +283,7 @@ AFRAME.registerComponent('croquet', {
         let password = this.data.password == 'demo' ? Croquet.App.autoPassword() : this.data.password;
         Croquet.Session.join(
             {
+                apiKey: '1MAgJydFdvcKpGkHe7bhxLmr3Hj4mofPKvC06mpII',
                 appId: "com.aframe.multiuser",           
                 name: sessionName,     
                 password: password,  
