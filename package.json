@@ -9,11 +9,11 @@
     "url": "https://github.com/NikolaySuslov/aframe-croquet-component.git"
   },
   "main": "index.js",
-  "dependencies": {
-    "serve-static": "1.14.1"
+  "devDependencies": {
+    "budo": "^11.8.4"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "budo --dir public --live --verbose --open --ssl --cors"
   },
   "keywords": [
     "croquet"
