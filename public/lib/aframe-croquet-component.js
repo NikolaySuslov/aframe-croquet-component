@@ -273,7 +273,8 @@ AFRAME.registerComponent('croquet', {
 
     schema: {
         sessionName: { default: 'demo' },
-        password: { default: 'demo' }
+        password: { default: 'demo' },
+        apiKey: {default: 'myApiKey'}
     },
 
     init: function () {
@@ -281,9 +282,10 @@ AFRAME.registerComponent('croquet', {
         //Croquet.startSession(this.data.sessionName, RootModel, RootView, { step: "manual" })
         let sessionName = this.data.sessionName == 'demo' ? Croquet.App.autoSession() : this.data.sessionName;
         let password = this.data.password == 'demo' ? Croquet.App.autoPassword() : this.data.password;
+        let apiKey = this.data.apiKey == 'myApiKey' ? '1MAgJydFdvcKpGkHe7bhxLmr3Hj4mofPKvC06mpII' : this.data.apiKey;
         Croquet.Session.join(
             {
-                apiKey: '1MAgJydFdvcKpGkHe7bhxLmr3Hj4mofPKvC06mpII',
+                apiKey: apiKey,
                 appId: "com.aframe.multiuser",           
                 name: sessionName,     
                 password: password,  
