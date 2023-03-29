@@ -1,6 +1,6 @@
 /*
 The MIT License (MIT)
-Copyright (c) 2020 Nikolai Suslov | Krestianstvo.org
+Copyright (c) 2019-2023 Nikolai Suslov | Krestianstvo.org and contributors
 */
 
 if (typeof AFRAME === 'undefined') {
@@ -452,6 +452,10 @@ AFRAME.registerComponent('multiuser', {
         let self = this;
         this.scene = this.el.sceneEl;
         this.ready = false;
+        this.avatarData = this.avatarData = {
+            position: "0 0 0"
+        }
+        this.throttledFunction = AFRAME.utils.throttle(this.updateAvatar, 100, this);
 
         Reflect.defineProperty(this.el,
             'setAttributeAFrame', {
@@ -539,6 +543,7 @@ AFRAME.registerComponent('multiuser', {
         var singlePropUpdate = {};
         var MULTIPLE_COMPONENT_DELIMITER = '__';
         var COMPONENTS = AFRAME.components;
+        let self = this
 
         return function (attrName, arg1, arg2) {
             var newAttrValue;
@@ -585,7 +590,15 @@ AFRAME.registerComponent('multiuser', {
             // Update component
             //this.updateComponent(attrName, newAttrValue, clobber);
             //console.log('multiuser component: Send attribute to model: ', attrName, newAttrValue, clobber);
-            this.emit('setAttribute-event', { data: { attrName: attrName, value: newAttrValue, clobber: clobber } }, false);
+
+            if(this.id.includes('avatar-')){
+                self.avatarData = {
+                    "position": newAttrValue
+                }
+            } else {
+                this.emit('setAttribute-event', { data: { attrName: attrName, value: newAttrValue, clobber: clobber } }, false)
+            }
+
 
 
             // In debug mode, write component data up to the DOM.
@@ -608,11 +621,21 @@ AFRAME.registerComponent('multiuser', {
 
     },
 
+    updateAvatar: function() {
+        if (this.avatarData !== this.oldAvatarData){
+            console.log("update avatar position");
+            this.el.emit('setAttribute-event', { data: { attrName: "position", value: this.avatarData.position} }, false)
+            this.oldAvatarData = this.avatarData
+        }
+    },
+
     tick: function (t, dt) {
 
         if (!this.ready) {
             this.scene.emit('add-multiuser', { comp: this, rig: this.data.rig }, false);
         }
+
+        this.throttledFunction()
 
     }
 })
