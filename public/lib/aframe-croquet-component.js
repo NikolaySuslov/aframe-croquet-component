@@ -1,5 +1,5 @@
 /*
-The MIT License (MIT) 
+The MIT License (MIT)
 Copyright (c) 2020 Nikolai Suslov | Krestianstvo.org
 */
 
@@ -9,14 +9,18 @@ if (typeof AFRAME === 'undefined') {
 
 let Q = Croquet.Constants;
 Q.STEP_MS = 1000 / 20;
+Q.RIG_ID = 'rig';
+Q.AVATAR_PREFIX = 'avatar-';
+Q.COLORS = ['purple', 'blue', 'green', 'orange', 'yellow', 'red', 'gray', 'white', 'maroon', 'navy', 'aqua', 'lime', 'olive', 'teal', 'fuchsia', 'silver', 'black'];
+Q.INITIAL_PLACEMENT_RADIUS = 7;
 
 class RootModel extends Croquet.Model {
 
     init(options) {
         super.init(options);
-        this.children = {};
+        this.children = new Map();
         //Aware of Users
-        this.userData = {};
+        this.userData = new Map();
         this.subscribe(this.sessionId, "view-join", this.addUser);
         this.subscribe(this.sessionId, "view-exit", this.deleteUser);
         this.subscribe(this.id, 'onDeleteUser', this.onDeleteUser);
@@ -35,10 +39,10 @@ class RootModel extends Croquet.Model {
 
     onDeleteComponent(data) {
 
-        let component = this.children[data];
+        let component = this.children.get(data);
         if (component) {
             component.destroy();
-            delete this.children[data];
+            this.children.delete(data);
         }
 
     }
@@ -46,11 +50,12 @@ class RootModel extends Croquet.Model {
     onComponentAdd(data) {
 
         let elID = data.elID;
+        const rig = data.rig;
 
-        if (!Object.keys(this.children).includes(elID)) {
+        if (!this.children.has(elID)) {
             let component = ComponentModel.create(data);
-            this.children[elID] = component;
-            console.log("Model component added!");
+            this.children.set(elID, component);
+            console.log("RootModel: Model component added:", elID, data);
         }
         this.publish(this.id, 'component-added', elID);
     }
@@ -58,21 +63,48 @@ class RootModel extends Croquet.Model {
 
 
     addUser(id) {
-        this.userData[id] = { start: this.now() };
-        console.log(`user ${id} came in`);
-        this.publish(this.sessionId, 'user-added');
+        let numOnline = 1;
+        for (const userDatum of this.userData.values()) { if (userDatum.online) { ++numOnline; } }
+
+        const data = this.userData.get(id);
+        if (data) {
+            data.online = true;
+            const timeSec = (this.now() - data.start) / 1000;
+            console.info(`RootModel: user ${data.color} ${id} rejoining & first joined ${timeSec} seconds ago (${numOnline} of ${this.userData.size} user(s) online)`);
+        } else {
+            const color = Q.COLORS[this.userData.size % Q.COLORS.length];
+            const theta = Math.random() * 2 * Math.PI;
+            const x = Q.INITIAL_PLACEMENT_RADIUS * Math.cos(theta);
+            const z = Q.INITIAL_PLACEMENT_RADIUS * Math.sin(theta);
+            const heading = (Math.PI / 2 - theta) * 180 / Math.PI;
+            this.userData.set(id, {
+                online: true,
+                start: this.now(),
+                color: color,
+                position: {x, y: 0.8, z},
+                rotation: {x: 0, y: heading, z: 0}
+            });
+            console.info(`RootModel: user ${color} ${id} joining (${numOnline} of ${this.userData.size} user(s) online)`);
+        }
+        this.publish(this.sessionId, 'user-added', id);
     }
 
 
     deleteUser(id) {
-        const time = this.now() - this.userData[id].start;
-        //console.log(`user ${id} left after ${time / 1000} seconds`);
+        const data = this.userData.get(id);
+        data.online = false;   // retains data, including color & positions
+        let numOnline = 0;
+        for (const userDatum of this.userData.values()) { if (userDatum.online) { ++numOnline; } }
+        const time = this.now() - this.userData.get(id)?.start;
+        console.log(`user ${data?.color} ${id} left after ${time / 1000} seconds (${numOnline} of ${this.userData.size} user(s) online)`);
+        this.publish(this.sessionId, 'user-exit', id);
         //this.publish(this.id, 'onDeleteUser', id);
     }
 
     onDeleteUser(id) {
-        if (this.userData[id])
-            delete this.userData[id];
+        if (this.userData.get(id)) {
+            this.userData.delete(id);
+        }
     }
 
 }
@@ -91,10 +123,10 @@ class RootView extends Croquet.View {
         this.aframeScene.addEventListener('add-multiuser', function (event) {
             let comp = event.detail.comp;
             if (!comp.ready) {
-                console.log('Add multiuser component', event.detail);
+                console.log('RootView: Add multiuser component:', event.detail?.comp?.el?.id, event.detail);
                 comp.ready = true;
                 let elID = comp.el.id;
-                self.publish(model.id, "add-multiuser-model", { elID: elID });
+                self.publish(model.id, "add-multiuser-model", { elID: elID, rig: event.detail.rig });
             }
         });
 
@@ -108,33 +140,94 @@ class RootView extends Croquet.View {
         })
 
         this.subscribe(this.sessionId, 'user-added', this.onUserAdded);
+        this.subscribe(this.sessionId, 'user-exit', this.onUserExit);
         this.subscribe(model.id, 'component-added', this.addViewComponent);
         this.subscribe(this.viewId, "synced", this.synced);
 
+        for (const [id, data] of model.userData.entries()) {
+            if (data?.online) {
+                this.createAvatar(id, data);
+            } else {
+                this.removeAvatar(id, data);
+            }
+        }
     }
 
     addViewComponent(elID) {
 
         if (!Object.keys(this.children).includes(elID)) {
-            let component = this.sceneModel.children[elID];
+            let component = this.sceneModel.children.get(elID);
             let componentView = new ComponentView(component);
             this.children[elID] = componentView;
-            console.log('View component added!');
+            console.log('RootView: View component added:', elID, component);
         }
     }
 
     synced() {
-        console.log('Synced Models: ', this.sceneModel.children);
-        Object.keys(this.sceneModel.children).forEach(el=>{
+        console.log('RootView: synced models: ', this.sceneModel.children);
+        for (const el of this.sceneModel.children.keys()) {
             this.addViewComponent(el);
-        })
+        }
     }
 
-    onUserAdded() {
-        console.log('User added!');
+    onUserAdded(id) {
+        const data = this.sceneModel.userData.get(id);
+        if (data) {
+            this.createAvatar(id, data);
+        } else {
+            console.error(`RootView: can't create avatar for user ${id} without data`);
+        }
         //console.log('Models: ', this.children);
     }
 
+    onUserExit(id) {
+        const data = this.sceneModel.userData.get(id);
+        this.removeAvatar(id, data);
+    }
+
+    createAvatar(id, data) {
+        if (id === this.viewId) {   // the local user
+            let rigEntity = document.getElementById(Q.AVATAR_PREFIX + id);
+            if (rigEntity) {
+                console.log(`RootView: rig for user ${data.color} ${id} already exists as ${Q.AVATAR_PREFIX + id}`);
+            } else {
+                rigEntity = document.getElementById(Q.RIG_ID);
+                console.log(`RootView: setting ID of rig for user ${data.color} ${id} to ${Q.AVATAR_PREFIX + id}`);
+                rigEntity.setAttribute('id', Q.AVATAR_PREFIX + id);
+                rigEntity.setAttribute('position', data.position);
+                rigEntity.setAttribute('rotation', data.rotation);
+                rigEntity.setAttribute('multiuser', {rig: true});
+            }
+        } else {
+            let avatarEntity = document.getElementById(Q.AVATAR_PREFIX + id);
+            if (avatarEntity) {
+                console.log(`RootView: avatar of user ${data.color} ${id} already exists`);
+            } else {
+                console.log(`RootView: creating avatar for user ${data.color} ${id}`);
+                const avatarTemplate = document.getElementById('avatarTemplate');
+                avatarEntity = avatarTemplate ?
+                    avatarTemplate.content.firstElementChild.cloneNode(true) :
+                    document.createElement('a-box');
+                avatarEntity.setAttribute('id', Q.AVATAR_PREFIX + id);
+                avatarEntity.setAttribute('position', data.position);
+                avatarEntity.setAttribute('rotation', data.rotation);
+                avatarEntity.setAttribute('color', data.color);
+                avatarEntity.setAttribute('multiuser', {rig: true});
+                AFRAME.scenes[0].appendChild(avatarEntity);
+            }
+        }
+    }
+
+    removeAvatar(id, data) {
+        const avatarEntity = document.getElementById(Q.AVATAR_PREFIX + id);
+        if (avatarEntity) {
+            const avatarColor = avatarEntity?.getAttribute('color');
+            console.log(`RootView: removing ${avatarColor} avatar of user ${data?.color} ${id}`);
+            avatarEntity.parentNode.removeChild(avatarEntity);
+        } else {
+            console.warn(`RootView: can't remove non-existent avatar for user ${data?.color} ${id}`);
+        }
+    }
     removeChild(childID) {
         const child = this.children[childID];
         child.detach();
@@ -157,11 +250,13 @@ class ComponentModel extends Croquet.Model {
 
         this.components = {
             multiuser: {
+                rig:  options.rig,
                 anim: false
             }
         };
 
         this.elID = options.elID;
+        this.rig = options.rig;
         this.sceneModel = this.wellKnownModel("modelRoot");
         this.subscribe(this.id, 'changeComponent', this.changeComponent);
         this.future(Q.STEP_MS).step();
@@ -184,7 +279,7 @@ class ComponentModel extends Croquet.Model {
             let newRotation =
             {
                 rotation:
-                    { x: rot.x, y: Math.sin(t) * 50, z: Math.sin(t) * 30 }
+                    { x: rot.x, y: Math.sin(t / 1000) * 50, z: Math.sin(t / 2000) * 30 }
             };
             this.changeComponent({ data: newRotation, senderId: 'model' });
         }
@@ -208,7 +303,7 @@ class ComponentModel extends Croquet.Model {
         let diff = JSON.parse(JSON.stringify(changed.data)); //deep object clone
         this.merge(this.components, changed.data);
         this.publish(this.id, 'modelChanged', { senderId: changed.senderId, data: diff });
-        //console.log('Model is changed with: ', diff, ' from ', changed.senderId);
+        //console.log('ComponentModel: Model is changed with: ', diff, ' from ', changed.senderId);
     }
 }
 
@@ -223,12 +318,13 @@ class ComponentView extends Croquet.View {
         this.aframeScene = document.querySelector('a-scene');
         this.aframeEl = this.aframeScene.querySelector('#' + this.elementModel.elID);
 
-        this.aframeEl.addEventListener('setAttribute-event', function (event) {
+        this.aframeEl?.addEventListener('setAttribute-event', function (event) {
 
             let data = event.detail.data;
-            //console.log('Get AFrame setAttribute event with: ', data);
-            self.publish(self.elementModel.id, 'changeComponent', { data: { [data.attrName]: data.value }, senderId: self.viewId });
-
+            if (!self.elementModel.rig || ['position', 'rotation', 'scale', 'multiuser'].includes(data.attrName)) {
+                //console.log('ComponentView: Get AFrame setAttribute event with: ', data);
+                self.publish(self.elementModel.id, 'changeComponent', { data: { [data.attrName]: data.value }, senderId: self.viewId });
+            }
         })
 
         this.subscribe(model.id, { event: 'modelChanged', handling: 'oncePerFrame' }, this.changeView);
@@ -238,21 +334,23 @@ class ComponentView extends Croquet.View {
     }
 
     initView() {
-        console.log('init view from model...');
+        console.log('ComponentView: init view from model:', this.elementModel?.elID);
 
         let modelComponents = this.elementModel.components;
 
         if (Object.entries(modelComponents).length > 1) {
             // set from model components
-            this.aframeEl.emit('update-aframe-element', { data: modelComponents });
+            this.aframeEl?.emit('update-aframe-element', { data: modelComponents });
         } else {
             //set up first model from aframe components
             let newModelComponents = {};
-            let elementComponents = this.aframeEl.components;
+            let elementComponents = this.aframeEl?.components;
 
             Object.keys(elementComponents).forEach(key => {
-                let prop = this.aframeEl.getAttribute(key);
-                newModelComponents[key] = JSON.parse(JSON.stringify(prop));
+                if (!this.elementModel.rig || ['position', 'rotation', 'scale', 'multiuser'].includes(key)) {
+                    let prop = this.aframeEl?.getAttribute(key);
+                    newModelComponents[key] = JSON.parse(JSON.stringify(prop));
+                }
             })
             this.publish(this.elementModel.id, 'changeComponent', { data: newModelComponents, senderId: this.viewId });
         }
@@ -286,9 +384,9 @@ AFRAME.registerComponent('croquet', {
         Croquet.Session.join(
             {
                 apiKey: apiKey,
-                appId: "com.aframe.multiuser",           
-                name: sessionName,     
-                password: password,  
+                appId: "com.aframe.multiuser",
+                name: sessionName,
+                password: password,
                 model: RootModel,
                 view: RootView
                 //debug: ["session"]
@@ -346,7 +444,8 @@ AFRAME.registerComponent('croquet', {
 AFRAME.registerComponent('multiuser', {
 
     schema: {
-        anim: { type: 'string', default: false }
+        rig:  { type: 'boolean', default: false },
+        anim: { type: 'boolean', default: false }
     },
 
     init: function () {
@@ -373,12 +472,12 @@ AFRAME.registerComponent('multiuser', {
             let data = event.detail.data;
             Object.keys(data).forEach(key => {
                 self.el.setAttributeAFrame(key, data[key]);
-                //console.log('Set attribute on element from model: ', key, ' with: ', data[key])
+                //console.log('multiuser component: Set attribute on element from model: ', key, ' with: ', data[key])
             })
         })
     },
 
-    //Original defenition from A-Frame master
+    //Original definition from A-Frame master
     originalSetAttribute: function () {
         var singlePropUpdate = {};
         var MULTIPLE_COMPONENT_DELIMITER = '__';
@@ -435,7 +534,7 @@ AFRAME.registerComponent('multiuser', {
         };
     },
 
-    //Modified defenition from A-Frame master
+    //Modified definition from A-Frame master
     croquetSetAttribute: function () {
         var singlePropUpdate = {};
         var MULTIPLE_COMPONENT_DELIMITER = '__';
@@ -485,7 +584,7 @@ AFRAME.registerComponent('multiuser', {
 
             // Update component
             //this.updateComponent(attrName, newAttrValue, clobber);
-            //console.log('Send attribute to model: ', attrName, newAttrValue, clobber);
+            //console.log('multiuser component: Send attribute to model: ', attrName, newAttrValue, clobber);
             this.emit('setAttribute-event', { data: { attrName: attrName, value: newAttrValue, clobber: clobber } }, false);
 
 
@@ -512,7 +611,7 @@ AFRAME.registerComponent('multiuser', {
     tick: function (t, dt) {
 
         if (!this.ready) {
-            this.scene.emit('add-multiuser', { comp: this }, false);
+            this.scene.emit('add-multiuser', { comp: this, rig: this.data.rig }, false);
         }
 
     }
