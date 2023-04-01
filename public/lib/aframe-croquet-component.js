@@ -52,7 +52,6 @@ class RootModel extends Croquet.Model {
     onComponentAdd(data) {
 
         let elID = data.elID;
-        const rig = data.rig;
 
         if (!this.children.has(elID)) {
             let component = ComponentModel.create(data);
@@ -188,35 +187,31 @@ class RootView extends Croquet.View {
     }
 
     createAvatar(id, data) {
-        if (id === this.viewId) {   // the local user
-            let rigEntity = document.getElementById(Q.AVATAR_PREFIX + id);
-            if (rigEntity) {
-                console.debug(`RootView: rig for user ${data.color} ${id} already exists as ${Q.AVATAR_PREFIX + id}`);
-            } else {
-                rigEntity = document.getElementById(Q.RIG_ID);
-                console.debug(`RootView: setting ID of rig for user ${data.color} ${id} to ${Q.AVATAR_PREFIX + id}`);
-                rigEntity.setAttribute('id', Q.AVATAR_PREFIX + id);
-                rigEntity.setAttribute('position', data.position);
-                rigEntity.setAttribute('rotation', data.rotation);
-                rigEntity.setAttribute('multiuser', {rig: true});
-            }
+        let avatarEntity = document.getElementById(Q.AVATAR_PREFIX + id);
+        if (avatarEntity) {
+            console.debug(`RootView: avatar of user ${data.color} ${id} already exists`);
         } else {
-            let avatarEntity = document.getElementById(Q.AVATAR_PREFIX + id);
-            if (avatarEntity) {
-                console.debug(`RootView: avatar of user ${data.color} ${id} already exists`);
+            let multiuserValue;
+            if (id === this.viewId) {   // the local user
+                console.debug(`RootView: creating avatar for local user ${data.color} ${id}`);
+                avatarEntity = document.createElement('a-box');
+                avatarEntity.setAttribute('height', 2);
+                avatarEntity.setAttribute('wireframe', true);
+                multiuserValue = `rig: true; viewId: ${this.viewId}`;
             } else {
-                console.debug(`RootView: creating avatar for user ${data.color} ${id}`);
+                console.debug(`RootView: creating avatar for remote user ${data.color} ${id}`);
                 const avatarTemplate = document.getElementById('avatarTemplate');
                 avatarEntity = avatarTemplate ?
                     avatarTemplate.content.firstElementChild.cloneNode(true) :
                     document.createElement('a-box');
-                avatarEntity.setAttribute('id', Q.AVATAR_PREFIX + id);
-                avatarEntity.setAttribute('position', data.position);
-                avatarEntity.setAttribute('rotation', data.rotation);
-                avatarEntity.setAttribute('color', data.color);
-                avatarEntity.setAttribute('multiuser', {rig: true});
-                AFRAME.scenes[0].appendChild(avatarEntity);
+                multiuserValue = `rig: true`;
             }
+            avatarEntity.setAttribute('id', Q.AVATAR_PREFIX + id);
+            avatarEntity.setAttribute('position', data.position);
+            avatarEntity.setAttribute('rotation', data.rotation);
+            avatarEntity.setAttribute('color', data.color);
+            avatarEntity.setAttribute('multiuser', multiuserValue);
+            AFRAME.scenes[0].appendChild(avatarEntity);
         }
     }
 
@@ -250,7 +245,7 @@ class ComponentModel extends Croquet.Model {
     init(options) {
         super.init(options);
 
-        this.components = {
+        this.components = {   // position, rotation, etc. will be saved here
             multiuser: {
                 rig:  options.rig,
                 anim: false
@@ -351,7 +346,11 @@ class ComponentView extends Croquet.View {
             Object.keys(elementComponents).forEach(key => {
                 if (!this.elementModel.rig || Q.SYNCABLE_ATTRIBUTES.includes(key)) {
                     let prop = this.aframeEl?.getAttribute(key);
-                    newModelComponents[key] = JSON.parse(JSON.stringify(prop));
+                    try {
+                        newModelComponents[key] = JSON.parse(JSON.stringify(prop));
+                    } catch (err) {
+                        console.error(`ComponentView: while copying prop ${key}:`, prop, err);
+                    }
                 }
             })
             this.publish(this.elementModel.id, 'changeComponent', { data: newModelComponents, senderId: this.viewId });
@@ -446,6 +445,7 @@ AFRAME.registerComponent('croquet', {
 AFRAME.registerComponent('multiuser', {
 
     schema: {
+        viewId: { type: 'string'},
         rig:  { type: 'boolean', default: false },
         anim: { type: 'boolean', default: false }
     },
@@ -453,11 +453,27 @@ AFRAME.registerComponent('multiuser', {
     init: function () {
         let self = this;
         this.scene = this.el.sceneEl;
+        this.v = new THREE.Vector3();
+        this.rig = this.data.rig;
         this.ready = false;
         // Alas, these won't be synchronized with Croquet pub-sub
         this.updateAvatarThrottled = {};
         for (const attrName of Q.THROTTLED_ATTRIBUTES) {
-            this.updateAvatarThrottled[attrName] = AFRAME.utils.throttleLeadingAndTrailing(this.updateAvatar, Q.STEP_MS, this);
+            this.updateAvatarThrottled[attrName] = AFRAME.utils.throttle(this.updateAvatar, 250, this);
+        }
+
+        if (this.data.viewId?.length) {
+            this.cameraEnt = this.scene.querySelector('[camera]');
+            this.rigEnt = this.cameraEnt?.parentElement;
+            if ('A-SCENE' === this.rigEnt.nodeName) {
+                this.rigEnt = this.cameraEnt;
+            }
+            const avatarPosition = structuredClone(this.el.components.position.attrValue);
+            console.info(`multiuser: setting position of rig:`, avatarPosition);
+            this.rigEnt.setAttribute('position', avatarPosition);
+            const avatarRotation = structuredClone(this.el.components.rotation.attrValue);
+            console.info(`multiuser: setting rotation of rig:`, avatarRotation);
+            this.rigEnt.setAttribute('rotation', avatarRotation);
         }
 
         Reflect.defineProperty(this.el,
@@ -475,12 +491,10 @@ AFRAME.registerComponent('multiuser', {
         )
 
         this.el.addEventListener('update-aframe-element', function (event) {
-
-            let data = event.detail.data;
-            Object.keys(data).forEach(key => {
-                self.el.setAttributeAFrame(key, data[key]);
-                //console.log('multiuser component: Set attribute on element from model: ', key, ' with: ', data[key])
-            })
+            for ([key, value] of Object.entries(event.detail.data)) {
+                self.el.setAttributeAFrame(key, value);
+                // console.log('multiuser component: Set attribute on element from model: ', key, ' with: ', value)
+            }
         })
     },
 
@@ -621,14 +635,33 @@ AFRAME.registerComponent('multiuser', {
     },
 
     updateAvatar: function(attrName, value) {
-        console.debug(`multiuser component: updating avatar ${attrName} to ${value}`);
+        // console.debug(`multiuser component: updating avatar ${attrName} to`, value);
         this.el.emit('setAttribute-event', {data: {attrName, value}}, false);
     },
 
     tick: function (t, dt) {
-
         if (!this.ready) {
-            this.scene.emit('add-multiuser', { comp: this, rig: this.data.rig }, false);
+            if ('[object Object]' === this.data) {
+                console.warn(`multiuser: attribute data not parsed by A-Frame`);
+                return;
+            }
+            const rig = 'boolean' === typeof this.data?.rig ? this.data?.rig : this.rig;
+            this.scene.emit('add-multiuser', { comp: this, rig: rig }, false);
+        } else {
+            if (this.rigEnt) {
+                try {
+                    const object3D = this.rigEnt.object3D;
+                    this.v.set(0, 0, 0);
+                    object3D.localToWorld(this.v);
+                    if (Number.isFinite(this.v.x) && Number.isFinite(this.v.y) && Number.isFinite(this.v.z)) {
+                        this.updateAvatarThrottled['position']('position', structuredClone(this.v));
+                    } else {
+                        console.debug(`multiuser: not updating avatar position with NaN:`, this.v);
+                    }
+                } catch (err) {
+                    console.error("while saving camera props:", err);
+                }
+            }
         }
     }
 })
