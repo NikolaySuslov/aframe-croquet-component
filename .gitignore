@@ -30,3 +30,6 @@ node_modules
 
 # IDEs
 .idea
+
+# MacOS
+.DS_Store
