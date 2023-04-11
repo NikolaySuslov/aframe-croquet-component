@@ -11,8 +11,13 @@
 </head>
 <body>
   <a-scene croquet="sessionName: demo; password: demo">
+    <a-assets>
+      <img id="brick" src="assets/TexturesCom_Wall_BrickPlain1_512_albedo.jpg" />
+    </a-assets>
     <a-box id="box1" position="-2 1 -3" rotation="0 45 0" color="#4CC3D9" multiuser="anim: true"></a-box>
     <a-sphere id="sphere1" class="clickable" position="0 0.5 -3" radius="0.5" color="#EF2D5E" multiuser></a-sphere>
+    <a-cylinder id="cylinder1" position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D" src="#brick" multiuser
+                animation="property: position; from: 1 0.75 -3; to: 0 2 -2; dur: 3000; dir: alternate; easing: easeInOutQuad; loop: true"></a-cylinder>
     <a-plane id="plane1" position="0 0 -2" rotation="-90 0 0" width="4" height="4" color="#7BC8A4"></a-plane>
     <a-sky id="sky" color="#ECECEC"></a-sky>
 
