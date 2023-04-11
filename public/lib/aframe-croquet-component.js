@@ -10,10 +10,13 @@ if (typeof AFRAME === 'undefined') {
 let Q = Croquet.Constants;
 Q.STEP_MS = 1000 / 20;
 Q.AVATAR_PREFIX = 'avatar-';
-Q.THROTTLED_ATTRIBUTES = ['position', 'rotation', 'scale'];
+Q.THROTTLED_ATTRIBUTES = ['position', 'rotation', 'rotationquaternion', 'scale'];
 Q.SYNCABLE_ATTRIBUTES = [...Q.THROTTLED_ATTRIBUTES, 'multiuser'];
 Q.COLORS = ['purple', 'blue', 'green', 'orange', 'yellow', 'red', 'gray', 'white', 'maroon', 'navy', 'aqua', 'lime', 'olive', 'teal', 'fuchsia', 'silver', 'black'];
+Q.CAMERA_HEIGHT = 1.6;
 Q.INITIAL_PLACEMENT_RADIUS = 7;
+Q.FLIP_Z = new THREE.Quaternion(0, -1, 0, 0);
+Q.FLIP_Z_INV = new THREE.Quaternion(0, 1, 0, 0);
 
 class RootModel extends Croquet.Model {
 
@@ -74,12 +77,12 @@ class RootModel extends Croquet.Model {
             const theta = this.random() * 2 * Math.PI;
             const x = Q.INITIAL_PLACEMENT_RADIUS * Math.sin(theta);
             const z = Q.INITIAL_PLACEMENT_RADIUS * Math.cos(theta);
-            const heading = (theta / Math.PI) * 180 + 180;
+            const heading = THREE.MathUtils.radToDeg(theta) + 180;
             data = {
                 online: true,
                 start: this.now(),
                 color: Q.COLORS[this.userData.size % Q.COLORS.length],
-                position: {x, y: 0.8, z},
+                position: {x, y: Q.CAMERA_HEIGHT, z},
                 rotation: {x: 0, y: heading, z: 0},
             };
             this.userData.set(viewId, data);
@@ -95,9 +98,13 @@ class RootModel extends Croquet.Model {
                 elID: elID,
                 color: data.color,
                 // sceneModel: this,
-                components: {
-                    position: {x: data.position.x || 0, y: data.position.y || 0.8, z: data.position.z || -Q.INITIAL_PLACEMENT_RADIUS},
-                    rotation: {x: data.rotation.x || 0, y: data.rotation.y || 0, z: data.rotation.z || 0},
+                components: {   // if a coordinate is NaN, use default
+                    position: {
+                        x: Number.isFinite(data.position?.x) ? data.position.x : 0,
+                        y: Number.isFinite(data.position?.y) ? data.position.y : Q.CAMERA_HEIGHT,
+                        z: Number.isFinite(data.position?.z) ? data.position.z : -Q.INITIAL_PLACEMENT_RADIUS
+                    },
+                    rotation: {x: data.rotation?.x || 0, y: data.rotation?.y || 0, z: data.rotation?.z || 0},
                     multiuser: {},
                 }
             }
@@ -222,6 +229,15 @@ class RootView extends Croquet.View {
 }
 
 class ComponentModel extends Croquet.Model {
+    static types() {
+        return {
+            "THREE.Quaternion": {
+                cls: THREE.Quaternion,
+                write: q => [q.x, q.y, q.z, q.w],        // serialized as '[...,...,...,...]'
+                read: q => new THREE.Quaternion(q[0], q[1], q[2], q[3]),
+            },
+        }
+    }
 
     init(options) {
         super.init(options);
@@ -262,22 +278,25 @@ class ComponentModel extends Croquet.Model {
     }
 
     merge(target, source) {
-        // Iterate through `source` properties and if an `Object` set property to merge of `target` and `source` properties
-        for (const key of Object.keys(source)) {
-            if (!target[key]) {
-                target[key] = {}
+        for (const [key, value] of Object.entries(source)) {
+            if (Array.isArray(value) ||
+                    value instanceof THREE.Quaternion) {
+                target[key] = value;
+            } else if (value instanceof Object) {
+                if (!(target[key] instanceof Object)) {
+                    target[key] = {}
+                }
+                this.merge(target[key], value);
+            } else {
+                target[key] = value;
             }
-            if (source[key] instanceof Object) Object.assign(source[key], this.merge(target[key], source[key]))
         }
-        // Join `target` and modified `source`
-        return Object.assign(target || {}, source)
     }
 
     changeComponent(changed) {
         //update model components
-        let diff = JSON.parse(JSON.stringify(changed.data)); //deep object clone
         this.merge(this.components, changed.data);
-        this.publish(this.id, 'modelChanged', { senderId: changed.senderId, data: diff });
+        this.publish(this.id, 'modelChanged', { senderId: changed.senderId, data: changed.data });
         //console.log('ComponentModel: Model is changed with: ', diff, ' from ', changed.senderId);
     }
 }
@@ -329,7 +348,8 @@ class ComponentView extends Croquet.View {
             if (avatarId === this.viewId) {   // the local user
                 console.debug(`ComponentView: creating avatar for local user ${model.color} ${avatarId}`);
                 element = document.createElement('a-box');
-                element.setAttribute('height', 2);
+                element.setAttribute('width', 0.5);
+                element.setAttribute('depth', 0.5);
                 element.setAttribute('wireframe', true);
                 element.setAttribute('visible', false);
                 element.dataset.isLocalAvatar = true;
@@ -378,9 +398,9 @@ class ComponentView extends Croquet.View {
         // Filters component values & replaces elements with IDs, so the model can save them
         Object.keys(elementComponents).forEach(componentName => {
             const prop = this.aframeEl?.getAttribute(componentName);
-            const [isSyncable, serializedValue] = this.filterComponent(isAvatar, componentName, prop);
+            const [isSyncable, substitutedValue] = this.filterComponent(isAvatar, componentName, prop);
             if (isSyncable) {
-                newModelComponents[componentName] = serializedValue;
+                newModelComponents[componentName] = substitutedValue;
             }
         })
         this.publish(this.elementModel.id, 'changeComponent', { data: newModelComponents, senderId: this.viewId });
@@ -389,35 +409,40 @@ class ComponentView extends Croquet.View {
     onSetAttribute(event) {
         const isAvatar = this.elementModel?.elID?.startsWith(Q.AVATAR_PREFIX);
         let data = event.detail.data;
-        const [isSyncable, serializedValue] = this.filterComponent(isAvatar, data.attrName, data.value);
+        const [isSyncable, substitutedValue] = this.filterComponent(isAvatar, data.attrName, data.value);
         if (isSyncable) {
-            this.publish(this.elementModel.id, 'changeComponent', { data: { [data.attrName]: serializedValue }, senderId: this.viewId });
+            this.publish(this.elementModel.id, 'changeComponent', { data: { [data.attrName]: substitutedValue }, senderId: this.viewId });
         }
     }
 
     filterComponent(isAvatar, componentName, componentValue) {
         if (!isAvatar || Q.SYNCABLE_ATTRIBUTES.includes(componentName)) {
             try {
-                if (componentValue && 'object' === typeof componentValue) {
-                    const serializedProp = {};
-                    for (const [key, value] of Object.entries(componentValue)) {
-                        if (value instanceof HTMLElement) {   // presumably an asset
-                            serializedProp[key] = '#' + value.id;
-                        } else {
-                            serializedProp[key] = structuredClone(value);
-                        }
-                    }
-                    return [true, serializedProp];
-                } else {
-                    return [true, structuredClone(componentValue)];
-                }
+                return [true, this.substitute(componentValue)];
             } catch (err) {
                 console.error(`ComponentView: while copying component ${componentName}:`, componentValue, err);
                 return [false, null];
             }
         } else {
-            console.debug(`ComponentView: not setting avatar ${componentName} to`, componentValue);
+            console.debug(`ComponentView: not setting non-syncable ${componentName} to`, componentValue);
             return [false, null];
+        }
+    }
+
+    substitute(inputValue) {
+        if (inputValue instanceof HTMLElement) {   // presumably an asset
+            return '#' + inputValue.id;
+        } else if (Array.isArray(inputValue) ||
+                inputValue instanceof THREE.Quaternion) {
+            return inputValue;
+        } else if (inputValue && 'object' === typeof inputValue) {
+            const substitutedProp = {};
+            for (const [key, value] of Object.entries(inputValue)) {
+                substitutedProp[key] = this.substitute(value);
+            }
+            return substitutedProp;
+        } else {
+            return inputValue;
         }
     }
 
@@ -433,9 +458,13 @@ class ComponentView extends Croquet.View {
         super.detach();
 
         if (this.aframeEl) {
-            console.debug(`ComponentView: removing element ${this.elementModel?.elID} and view`);
-            this.aframeEl.parentNode.removeChild(this.aframeEl);
-            this.aframeEl.destroy();
+            try {
+                console.debug(`ComponentView: removing element ${this.elementModel?.elID} and view`);
+                this.aframeEl.parentNode.removeChild(this.aframeEl);
+                this.aframeEl.destroy();
+            } catch (err) {
+                console.error(`while removing A-Frame element:`, err);
+            }
         } else {
             console.warn(`ComponentView: can't remove non-existent element ${this.elementModel?.elID}`);
         }
@@ -544,20 +573,31 @@ AFRAME.registerComponent('multiuser', {
                 this.rigEnt = this.cameraEnt;
             }
 
-            const avatarPosition = structuredClone(this.el.components.position.attrValue);
-            if (Number.isFinite(avatarPosition.x) && Number.isFinite(avatarPosition.y) && Number.isFinite(avatarPosition.z)) {
-                console.info(`multiuser: setting position of rig from avatar:`, avatarPosition);
-                this.rigEnt.setAttribute('position', avatarPosition);
+            const position = structuredClone(this.el.components.position.attrValue);
+            if (Number.isFinite(position.x) && Number.isFinite(position.y) && Number.isFinite(position.z)) {
+                position.y -= Q.CAMERA_HEIGHT;
+                console.info(`multiuser: from avatar, setting rig position to`, position);
+                this.rigEnt.setAttribute('position', position);
             } else {
-                console.warn(`multiuser: bad position of avatar:`, avatarPosition);
+                console.warn(`multiuser: bad position of avatar:`, position);
             }
-            const avatarRotation = structuredClone(this.el.components.rotation.attrValue);
-            if (Number.isFinite(avatarRotation.x) && Number.isFinite(avatarRotation.y) && Number.isFinite(avatarRotation.z)) {
-                console.info(`multiuser: setting rotation of rig from avatar:`, avatarRotation);
-                avatarRotation.y -= 180;
-                this.rigEnt.setAttribute('rotation', avatarRotation);
+
+            const qCamera = new THREE.Quaternion();
+            qCamera.copy(this.cameraEnt.object3D.quaternion);
+            qCamera.invert();
+            const q = new THREE.Quaternion();
+            q.setFromEuler(new THREE.Euler(
+                THREE.MathUtils.degToRad(this.el.components.rotation.attrValue.x),
+                THREE.MathUtils.degToRad(this.el.components.rotation.attrValue.y),
+                THREE.MathUtils.degToRad(this.el.components.rotation.attrValue.z),
+                'XYZ'));
+            q.multiply(Q.FLIP_Z_INV);
+            q.multiply(qCamera);
+            if (Number.isFinite(q.x) && Number.isFinite(q.y) && Number.isFinite(q.z) && Number.isFinite(q.w)) {
+                this.rigEnt.object3D.quaternion.copy(q);
+                console.info(`multiuser: from avatar, setting quaternion of rig to:`, q);
             } else {
-                console.warn(`multiuser: bad rotation of avatar:`, avatarRotation);
+                console.warn(`multiuser: bad rotation of avatar or quaternion of camera:`, q, qCamera);
             }
         }
 
@@ -719,26 +759,35 @@ AFRAME.registerComponent('multiuser', {
     },
 
     updateView: function(attrName, value) {
-        // console.debug(`multiuser component: updating avatar ${attrName} to`, value);
+        // console.debug(`multiuser component: updating ${this.el.id} ${attrName} to`, value);
         this.el.emit('setAttribute-event', {data: {attrName, value}}, false);
     },
 
     tick: (function () {   // Uses IIFE to allocate v only once
         const v = new THREE.Vector3();
+        const q = new THREE.Quaternion();
 
-        return function (t, dt) {
+        return function (_t, _dt) {
             if (!this.ready) {
                 this.scene.emit('add-multiuser', { comp: this }, false);
             } else {
-                if (this.rigEnt) {
+                if (this.cameraEnt) {   // then this.el is the local avatar element
                     try {
-                        let object3D = this.rigEnt.object3D;
+                        let cameraObject3D = this.cameraEnt.object3D;
                         v.set(0, 0, 0);
-                        object3D.localToWorld(v);
+                        cameraObject3D.localToWorld(v);
                         if (Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z)) {
                             this.el.setAttribute('position', structuredClone(v));
                         } else {
                             console.debug(`multiuser: not updating avatar position with NaN:`, v);
+                        }
+
+                        q.setFromRotationMatrix(cameraObject3D.matrixWorld);
+                        q.multiply(Q.FLIP_Z);
+                        if (Number.isFinite(q.x) && Number.isFinite(q.y) && Number.isFinite(q.z) && Number.isFinite(q.w)) {
+                            this.el.setAttribute('rotationquaternion', q);
+                        } else {
+                            console.debug(`multiuser: not updating avatar rotation with NaN:`, rotation);
                         }
                     } catch (err) {
                         console.error("while copying camera position & rotation to avatar:", err);
@@ -756,6 +805,8 @@ function toAFrameValue(attrName, attrValue) {
         case 'rotation':
         case 'scale':
             return `${attrValue.x} ${attrValue.y} ${attrValue.z}`;
+        case 'rotationquaternion':
+            return attrValue;
         case 'material':
             return structuredClone(attrValue);
         default:
@@ -766,3 +817,23 @@ function toAFrameValue(attrName, attrValue) {
             }
     }
 }
+
+
+/**
+ *  Allows *setting* the rotation using a quaternion.
+ *  Reading the rotation as a quaternion should still
+ *  be done from el.object3D.quaternion.
+ */
+AFRAME.registerComponent('rotationquaternion', {
+
+    schema: {type: 'vec4'},
+
+    update: function (oldData) {
+        // console.debug(`Updating rotationQuaternion from`, oldData, `to:`, this.data);
+        if (Number.isFinite(this.data.x) && Number.isFinite(this.data.y) && Number.isFinite(this.data.z) && Number.isFinite(this.data.w)) {
+            this.el.object3D.quaternion.copy(this.data);
+        } else {
+            console.warn(`rotationquaternion: not updating ${this.el.id} with NaN:`, this.data)
+        }
+    }
+});

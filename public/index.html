@@ -13,6 +13,7 @@
   <a-scene croquet="sessionName: demo; password: demo">
     <a-assets>
       <img id="brick" src="assets/TexturesCom_Wall_BrickPlain1_512_albedo.jpg" />
+      <a-asset-item id="avatarModel" src="assets/low_poly_head_with_hair_free_download.glb"></a-asset-item>
     </a-assets>
     <a-box id="box1" position="-2 1 -3" rotation="0 45 0" color="#4CC3D9" multiuser="anim: true"></a-box>
     <a-sphere id="sphere1" class="clickable" position="0 0.5 -3" radius="0.5" color="#EF2D5E" multiuser></a-sphere>
@@ -29,8 +30,10 @@
   </a-scene>
 
   <template id="avatarTemplate">
-      <a-octahedron color="#FF926B" radius="0.8"></a-octahedron>
-<!--      <a-entity gltf-model="#avatarModel"></a-entity>-->
+<!--    <a-octahedron color="#FF926B" radius="0.25"></a-octahedron>-->
+    <a-entity>   <!-- This entity is placed at the camera location and rotation -->
+      <a-entity gltf-model="#avatarModel" scale="0.004 0.004 0.004" rotation="0 0 0" position="0 0 0"></a-entity>
+    </a-entity>
   </template>
 </body>
 </html>

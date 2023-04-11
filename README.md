@@ -54,7 +54,6 @@ Give an `id` to the entity (if not exist) and finally add `multiuser` component
 
 Open the same scene in several Web Browsers windows. The entity should be synced!
 
-
 ### How to try out the synchronization:
 
 Open Web Browser Developer Tools and select an entity with `multiuser` component
@@ -75,6 +74,16 @@ box.setAttribute('multiuser', {anim: true});
 
 Also, you could try to attach to scene the [A-Frame scene Inspector](https://github.com/aframevr/aframe-inspector) by pressing ```<ctrl> + <alt> + i```. Modify entity properties within it's GUI and observe how some of the properties replicates on other peers.
 
+### User Avatars
+
+When a user connects, other clients will look for an avatar template:
+```html
+<template id="avatarTemplate">
+    <a-entity ...
+</template>
+```
+The first child of the template will be cloned and used as an avatar for the newly-connected player. The `color` attribute will be set to a distinct color, but only some primitives will use that.
+
 
 Basic Scene Example
 -------------
@@ -85,7 +94,7 @@ Basic Scene Example
 <head>
   <title>A-Frame & Croquet</title>
   <script src="https://unpkg.com/@croquet/croquet"></script>
-  <script src="https://aframe.io/releases/1.1.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
   <script src="https://unpkg.com/aframe-croquet-component/public/lib/aframe-croquet-component.js"></script>
 </head>
 <body>
@@ -96,6 +105,10 @@ Basic Scene Example
     <a-plane id="plane1" position="0 0 -4" rotation="-90 0 0" width="4" height="4" color="#7BC8A4" multiuser></a-plane>
     <a-sky color="#ECECEC"></a-sky>
   </a-scene>
+
+  <template id="avatarTemplate">
+      <a-octahedron radius="0.8"></a-octahedron>
+  </template>
 </body>
 </html>
 ```
