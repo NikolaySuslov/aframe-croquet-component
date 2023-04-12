@@ -10,20 +10,21 @@
   <script src="https://cdn.jsdelivr.net/gh/dougreeder/aframe-extras@052a1f4617f606e951650810cff116e404b886e5/dist/aframe-extras.controls.js"></script>
 </head>
 <body>
-  <a-scene croquet="sessionName: demo; password: demo">
+  <a-scene croquet="sessionName: demo; password: demo; spawnPoint: 0 0 0;">
     <a-assets>
       <img id="brick" src="assets/TexturesCom_Wall_BrickPlain1_512_albedo.jpg" />
       <a-asset-item id="avatarModel" src="assets/low_poly_head_with_hair_free_download.glb"></a-asset-item>
     </a-assets>
-    <a-box id="box1" position="-2 1 -3" rotation="0 45 0" color="#4CC3D9" multiuser="anim: true"></a-box>
-    <a-sphere id="sphere1" class="clickable" position="0 0.5 -3" radius="0.5" color="#EF2D5E" multiuser></a-sphere>
-    <a-cylinder id="cylinder1" position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D" src="#brick" multiuser
-                animation="property: position; from: 1 0.75 -3; to: 0 2 -2; dur: 3000; dir: alternate; easing: easeInOutQuad; loop: true"></a-cylinder>
+
+    <a-box id="box1" position="-1 1 -1" rotation="0 45 0" color="#4CC3D9" multiuser="anim: true"></a-box>
+    <a-sphere id="sphere1" class="clickable" position="0 0.5 -1" radius="0.5" color="#EF2D5E" multiuser></a-sphere>
+    <a-cylinder id="cylinder1" position="1 0.75 -1" radius="0.5" height="1.5" color="#FFC65D" src="#brick" multiuser
+                animation="property: position; from: 1 0.75 -1; to: 0 2 0; dur: 3000; dir: alternate; easing: easeInOutQuad; loop: true"></a-cylinder>
     <a-plane id="plane1" position="0 0 -2" rotation="-90 0 0" width="4" height="4" color="#7BC8A4"></a-plane>
     <a-sky id="sky" color="#ECECEC"></a-sky>
 
     <a-entity id="rig" movement-controls="setViaAttribute: true">
-      <a-entity camera position="0 1.6 0" look-controls="pointerLockEnabled: false">
+      <a-entity camera position="0 1.6 2" look-controls="pointerLockEnabled: false">
         <a-cursor objects=".clickable"></a-cursor>
       </a-entity>
     </a-entity>
@@ -31,8 +32,8 @@
 
   <template id="avatarTemplate">
 <!--    <a-octahedron color="#FF926B" radius="0.25"></a-octahedron>-->
-    <a-entity>   <!-- This entity is placed at the camera location and rotation -->
-      <a-entity gltf-model="#avatarModel" scale="0.004 0.004 0.004" rotation="0 0 0" position="0 0 0"></a-entity>
+    <a-entity>   <!-- This entity's location and rotation are set from the other user's camera -->
+      <a-entity gltf-model="#avatarModel" scale="0.005 0.005 0.005" rotation="0 0 0" position="0 0 0"></a-entity>
     </a-entity>
   </template>
 </body>

@@ -14,7 +14,7 @@ Q.THROTTLED_ATTRIBUTES = ['position', 'rotation', 'rotationquaternion', 'scale']
 Q.SYNCABLE_ATTRIBUTES = [...Q.THROTTLED_ATTRIBUTES, 'multiuser'];
 Q.COLORS = ['purple', 'blue', 'green', 'orange', 'yellow', 'red', 'gray', 'white', 'maroon', 'navy', 'aqua', 'lime', 'olive', 'teal', 'fuchsia', 'silver', 'black'];
 Q.CAMERA_HEIGHT = 1.6;
-Q.INITIAL_PLACEMENT_RADIUS = 7;
+Q.INITIAL_PLACEMENT_RADIUS = 2;
 Q.FLIP_Z = new THREE.Quaternion(0, -1, 0, 0);
 Q.FLIP_Z_INV = new THREE.Quaternion(0, 1, 0, 0);
 
@@ -25,11 +25,17 @@ class RootModel extends Croquet.Model {
         this.children = new Map();
         //Aware of Users
         this.userData = new Map();
+        this.spawnPoint = options.spawnPoint || {x: 0, y: 0, z: 0};
+        this.seeds = [];
+        for (let i=0; i<25; ++i) {
+            this.seeds[i] = this.random();
+        }
         this.subscribe(this.sessionId, "view-join", this.addUser);
         this.subscribe(this.sessionId, "view-exit", this.deleteUser);
         this.subscribe(this.id, 'onDeleteUser', this.onDeleteUser);
         this.subscribe(this.id, 'add-multiuser-model', this.onComponentAdd);
         this.subscribe(this.id, 'delete-multiuser-model', this.onDeleteComponent);
+        this.subscribe(this.id, 'updateOptions', this.updateOptions)
     }
 
     newId() {
@@ -39,6 +45,13 @@ class RootModel extends Croquet.Model {
         }
 
         return `${hex()}${hex()}${hex()}${hex()}`;
+    }
+
+    updateOptions(newOptions) {
+        if (Number.isFinite(newOptions.spawnPoint.x) && Number.isFinite(newOptions.spawnPoint.y) && Number.isFinite(newOptions.spawnPoint.z)) {
+            console.debug("RootModel: setting spawn point to", newOptions.spawnPoint);
+            this.spawnPoint = newOptions.spawnPoint;
+        }
     }
 
     onDeleteComponent(elID) {
@@ -75,14 +88,15 @@ class RootModel extends Croquet.Model {
             console.info(`RootModel: user ${data.color} ${viewId} rejoining & first joined ${timeSec} seconds ago (${this.viewCount} of ${this.userData.size} user(s) online):`, data);
         } else {
             const theta = this.random() * 2 * Math.PI;
-            const x = Q.INITIAL_PLACEMENT_RADIUS * Math.sin(theta);
-            const z = Q.INITIAL_PLACEMENT_RADIUS * Math.cos(theta);
+            const x = this.spawnPoint.x + Q.INITIAL_PLACEMENT_RADIUS * Math.sin(theta);
+            const y = this.spawnPoint.y + Q.CAMERA_HEIGHT;
+            const z = this.spawnPoint.z + Q.INITIAL_PLACEMENT_RADIUS * Math.cos(theta);
             const heading = THREE.MathUtils.radToDeg(theta) + 180;
             data = {
                 online: true,
                 start: this.now(),
                 color: Q.COLORS[this.userData.size % Q.COLORS.length],
-                position: {x, y: Q.CAMERA_HEIGHT, z},
+                position: {x, y, z},
                 rotation: {x: 0, y: heading, z: 0},
             };
             this.userData.set(viewId, data);
@@ -150,6 +164,7 @@ class RootView extends Croquet.View {
         this.children = {};
         this.sceneModel = model;
         this.aframeScene = document.querySelector('a-scene');
+        this.aframeScene.dataset.seeds = model.seeds;
 
         this.aframeScene.addEventListener('add-multiuser', function (event) {
             let comp = event.detail.comp;
@@ -172,6 +187,10 @@ class RootView extends Croquet.View {
             self.publish(model.id, 'delete-multiuser-model', data);
 
         })
+
+        this.aframeScene.addEventListener('updateOptions', (evnt) => {
+            self.publish(model.id, 'updateOptions', event.detail);
+        });
 
         this.subscribe(this.sessionId, 'user-added', this.onUserAdded);
         this.subscribe(this.sessionId, 'user-exit', this.onUserExit);
@@ -481,7 +500,8 @@ AFRAME.registerComponent('croquet', {
     schema: {
         sessionName: { default: 'demo' },
         password: { default: 'demo' },
-        apiKey: {default: 'myApiKey'}
+        apiKey: {default: 'myApiKey'},
+        spawnPoint: {type: 'vec3'},
     },
 
     init: function () {
@@ -497,6 +517,7 @@ AFRAME.registerComponent('croquet', {
                 name: sessionName,
                 password: password,
                 model: RootModel,
+                options: {spawnPoint: this.data.spawnPoint},
                 view: RootView
                 //debug: ["session"]
             }
@@ -541,6 +562,13 @@ AFRAME.registerComponent('croquet', {
     },
 
     update: function (oldData) {
+        const options = {};
+        if (! AFRAME.utils.deepEqual(this.data.spawnPoint, oldData.spawnPoint)) {
+            options.spawnPoint = this.data.spawnPoint;
+        }
+        if (Object.keys(options).length > 0) {
+            this.el.emit('updateOptions', options, false);
+        }
         //TODO: create new user-defined sessions
     },
 
