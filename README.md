@@ -1,4 +1,5 @@
-## A-Frame multi-user Croquet component 
+A-Frame multi-user Croquet component
+====================================
 
 The component allows easily, while staying in [A-Frame](https://aframe.io) scene definition (plain HTML file), to add a multi-user features onto A-Frame entities in scene. Create [Croquet](https://croquet.studio) (aka Croquet V) simulations on A-Frame entities.  
 A-Frame multi-user component works by synchronizing / replicating entities and their components to connected peers using Croquet application architecture. It relies on public Croquet reflectors, which are available online on the Internet.  
@@ -11,6 +12,7 @@ A-Frame multi-user component works by synchronizing / replicating entities and t
 
 Live basic project at Glitch: [https://glitch.com/~aframe-croquet-component](https://glitch.com/~aframe-croquet-component)
 
+[Sample world](./public/index.html) in this repository
 
 Getting Started
 ---------------
@@ -79,10 +81,52 @@ Also, you could try to attach to scene the [A-Frame scene Inspector](https://git
 When a user connects, other clients will look for an avatar template:
 ```html
 <template id="avatarTemplate">
-    <a-entity ...
+    <a-entity>   <!-- This entity's location and rotation are set from the other user's camera -->
+        <a-entity gltf-model="#avatarModel" position="0 -.30 0" rotation="0 90 0"></a-entity>
+    </a-entity>
 </template>
 ```
-The first child of the template will be cloned and used as an avatar for the newly-connected player. The `color` attribute will be set to a distinct color, but only some primitives will use that.
+The first child of the template (and its children) will be cloned and used as an avatar for the newly-connected player.
+The `color` attribute will be set to a distinct color, but only primitives such as a-box will use that.
+
+The position and rotation of that entity will be set from the other user's camera.
+If the avatar model does not face the positive Z-axis and have eyes close to y=0, you will need to wrap the model entity in an outer entity, and set the position and/or rotation of the model entity.
+
+### Seed random numbers for procedural generation
+
+During Croquet initialization, the `data-seeds` attribute of the scene element will be set to a list of 25 random numbers - the same list on every client.
+These numbers can be used for procedural generation of the world.
+
+Croquet Component Attributes
+----------------------------
+
+### sessionName
+
+default: 'demo', that is, randomly generated
+
+### password
+
+default: 'demo', that is, randomly generated
+
+### apiKey
+
+default: 'myApiKey'
+
+### spawnPoint
+
+default: {x: 0, y: 0, z: 0}
+
+User avatars will spawn near to and facing this point.
+
+
+Multiuser Component Attributes
+------------------------------
+
+### anim
+
+default: false
+
+Whether the element will be animated by its Croquet Model.
 
 
 Basic Scene Example
