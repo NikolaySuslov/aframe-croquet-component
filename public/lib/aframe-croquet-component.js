@@ -329,7 +329,11 @@ class ComponentView extends Croquet.View {
         console.debug(`ComponentView: constructing from`, model);
         this.elementModel = model;
         this.aframeScene = document.querySelector('a-scene');
-        this.aframeEl = this.aframeScene.querySelector('#' + this.elementModel.elID);
+        if (this.elementModel.elID) {
+            this.aframeEl = this.aframeScene.querySelector('#' + this.elementModel.elID);
+        } else {
+            throw new Error(`multiuser element must have id:` + this.elementModel);
+        }
         this.handlers = {   // addEventListener won't add an identical function twice
             onSetAttribute: this.onSetAttribute.bind(this),
         }
@@ -832,7 +836,11 @@ function toAFrameValue(attrName, attrValue) {
         case 'position':
         case 'rotation':
         case 'scale':
-            return `${attrValue.x} ${attrValue.y} ${attrValue.z}`;
+            if ('string' === typeof attrValue) {
+                return attrValue;
+            } else {
+                return `${attrValue.x} ${attrValue.y} ${attrValue.z}`;
+            }
         case 'rotationquaternion':
             return attrValue;
         case 'material':
