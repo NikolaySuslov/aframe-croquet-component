@@ -707,7 +707,7 @@ AFRAME.registerComponent('multiuser', {
             // Not a component. Normal set attribute.
             if (!COMPONENTS[componentName]) {
                 if (attrName === 'mixin') { this.mixinUpdate(arg1); }
-                ANode.prototype.setAttribute.call(this, attrName, arg1);
+                AFRAME.ANode.prototype.setAttribute.call(this, attrName, arg1);
                 return;
             }
 
@@ -765,7 +765,7 @@ AFRAME.registerComponent('multiuser', {
             // Not a component. Normal set attribute.
             if (!COMPONENTS[componentName]) {
                 if (attrName === 'mixin') { this.mixinUpdate(arg1); }
-                ANode.prototype.setAttribute.call(this, attrName, arg1);
+                AFRAME.ANode.prototype.setAttribute.call(this, attrName, arg1);
                 return;
             }
 
